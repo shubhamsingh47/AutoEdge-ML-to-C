@@ -1,0 +1,5 @@
+venv/
+AutoEdgeML.egg-info/
+logs/
+__pycache__
+.pytest_cache
