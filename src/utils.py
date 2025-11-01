@@ -1,4 +1,5 @@
 import os
+import re
 import hashlib
 import datetime
 from typing import Any, Tuple, Optional
@@ -30,7 +31,6 @@ def extract_pipeline_components(obj: Any) -> Tuple[Optional[Any], Any]:
         scaler = None
         estimator = None
         for name, step in obj.steps:
-            # detect scaler types we support
             if isinstance(step, (StandardScaler, MinMaxScaler)):
                 scaler = step
             else:
@@ -44,11 +44,9 @@ unwrap_pipeline = extract_pipeline_components
 
 
 def is_standard_scaler(obj: Any) -> bool:
-    from sklearn.preprocessing import StandardScaler
     return isinstance(obj, StandardScaler)
 
 def is_minmax_scaler(obj: Any) -> bool:
-    from sklearn.preprocessing import MinMaxScaler
     return isinstance(obj, MinMaxScaler)
 
 
@@ -58,19 +56,40 @@ def ensure_dir(path: str) -> None:
         os.makedirs(d, exist_ok=True)
 
 
-def generate_unique_header_name(model: Any, model_path: str) -> str:
-    class_name = model.__class__.__name__
-    try:
-        model_type = detect_linear_model_kind(model)
-    except Exception:
-        model_type = "unknown"
+def detect_scaler_in_pipeline(pipeline):
+    if hasattr(pipeline, "named_steps"):
+        for name, step in pipeline.named_steps.items():
+            if isinstance(step, StandardScaler):
+                return "stdscaler"
+            if isinstance(step, MinMaxScaler):
+                return "minmax"
+    return "none"
 
+
+def determine_model_type(model):
+    if isinstance(model, LogisticRegression):
+        if model.multi_class == "multinomial" or model.classes_.shape[0] > 2:
+            return "classification_multiclass"
+        
+        return "classification_binary"
+
+    if isinstance(model, RegressorMixin):
+        return "regression"
+
+    if isinstance(model, ClassifierMixin):
+        return "classification_binary"
+
+    return "other"
+
+
+def generate_clean_header_name(model, raw_model_obj, model_path):
+    base_name = os.path.splitext(os.path.basename(model_path))[0]
+    base_name = re.sub(r"[^a-zA-Z0-9_]", "_", base_name).lower()
+
+    model_type = determine_model_type(model)
+    scaler_flag = detect_scaler_in_pipeline(raw_model_obj)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    file_name = f"{base_name}__{model_type}__{scaler_flag}__{timestamp}.h"
 
-    if os.path.exists(model_path):
-        with open(model_path, "rb") as f:
-            file_hash = hashlib.md5(f.read()).hexdigest()[:6]
-    else:
-        file_hash = hashlib.md5(model_path.encode()).hexdigest()[:6]
-
-    return f"{class_name}_{model_type}_{timestamp}_{file_hash}.h"
+    return file_name

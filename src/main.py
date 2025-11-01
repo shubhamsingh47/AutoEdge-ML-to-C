@@ -4,7 +4,7 @@ import argparse
 from typing import Optional
 from logger.custom_logger import CustomLogger
 from exception.custom_exception import CustomException
-from src.utils import generate_unique_header_name, ensure_dir, detect_linear_model_kind
+from src.utils import generate_clean_header_name, ensure_dir, detect_linear_model_kind
 from src.converter.linear import LinearConverter
 from src.validators.linear_validation import validate_linear_model_exported
 import warnings
@@ -28,7 +28,7 @@ def convert_model(model_path: str, output_dir: str = "./generated", validate: bo
         c_code = converter.convert_to_c(func_name="predict_model")
 
         ensure_dir(output_dir)
-        file_name = generate_unique_header_name(converter.model, model_path)
+        file_name = generate_clean_header_name(converter.model,converter.raw_model, model_path)
         out_path = os.path.join(output_dir, file_name)
 
         with open(out_path, "w", encoding="utf-8") as f:
